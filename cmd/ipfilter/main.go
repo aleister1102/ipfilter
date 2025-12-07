@@ -9,6 +9,12 @@ import (
 	"github.com/quan-m-le/ipctl/internal/ipfilter"
 )
 
+var (
+	Version = "dev"
+	Commit  = "unknown"
+	Date    = "unknown"
+)
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
@@ -19,6 +25,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	inputPath := fs.String("i", "", "input file (defaults to stdin)")
 	outputPath := fs.String("o", "", "output file (defaults to stdout)")
+	versionFlag := fs.Bool("version", false, "show version")
 
 	fs.Usage = func() {
 		fmt.Fprintf(stderr, "Usage: %s [-i input] [-o output]\n", fs.Name())
@@ -30,6 +37,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return 0
 		}
 		return 2
+	}
+
+	if *versionFlag {
+		fmt.Fprintf(stdout, "ipfilter %s (commit: %s, built at: %s)\n", Version, Commit, Date)
+		return 0
 	}
 
 	in := stdin

@@ -1,87 +1,81 @@
-SHELL := /bin/bash
+BINARY_NAME=ipfilter
+BIN_DIR=bin
+BUILD_DIR=dist
+INSTALL_PATH=$(HOME)/.local/bin
+COMMIT=$(shell git rev-parse --short HEAD)
+DATE=$(shell date +%Y-%m-%d)
+CURRENT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+VERSION_PARTS := $(subst ., ,$(subst v,,$(CURRENT_TAG)))
+MAJOR := $(word 1,$(VERSION_PARTS))
+MINOR := $(word 2,$(VERSION_PARTS))
+PATCH := $(word 3,$(VERSION_PARTS))
+NEXT_PATCH := v$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH)+1)))
+NEXT_MINOR := v$(MAJOR).$(shell echo $$(($(MINOR)+1))).0
+NEXT_MAJOR := v$(shell echo $$(($(MAJOR)+1))).0.0
 
-BIN_NAME := ipfilter
-SRC_DIR := ./cmd/ipfilter
-BUILD_DIR := bin
-DIST_DIR := dist
-PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
-LEVEL ?= patch
+.DEFAULT_GOAL := help
 
-.PHONY: build release clean clean-release test
+help:
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@echo "  build       Build binary for current platform"
+	@echo "  clean       Remove build artifacts"
+	@echo "  test        Run tests"
+	@echo "  install     Build and install to $(INSTALL_PATH)"
+	@echo "  uninstall   Remove from $(INSTALL_PATH)"
+	@echo "  release     Release new version (usage: make release TAG=v1.0.0)"
+	@echo "  bump-patch  Release next patch version"
+	@echo "  bump-minor  Release next minor version"
+	@echo "  bump-major  Release next major version"
 
 build:
-	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BIN_NAME) $(SRC_DIR)
-
-release: clean-release
-	@mkdir -p $(DIST_DIR)
-	@set -euo pipefail; \
-	for platform in $(PLATFORMS); do \
-		GOOS=$${platform%/*}; \
-		GOARCH=$${platform#*/}; \
-		OUT="$(DIST_DIR)/$(BIN_NAME)-$${GOOS}-$${GOARCH}"; \
-		if [[ "$$GOOS" == "windows" ]]; then OUT="$$OUT.exe"; fi; \
-		echo "Building $$OUT"; \
-		GOOS=$${GOOS} GOARCH=$${GOARCH} CGO_ENABLED=0 go build -o $$OUT $(SRC_DIR); \
-	done
-
+	mkdir -p $(BIN_DIR)
+	go build -ldflags "-X main.Version=$(CURRENT_TAG) -X main.Commit=$(COMMIT) -X main.Date=$(DATE)" -o $(BIN_DIR)/$(BINARY_NAME) cmd/ipfilter/main.go
+	
 clean:
-	rm -rf $(BUILD_DIR)
-
-clean-release:
-	rm -rf $(DIST_DIR)
+	rm -rf $(BIN_DIR)
+	rm -f $(BINARY_NAME)
+	rm -rf output
 
 test:
 	go test ./...
 
-.PHONY: version bump push-tags gh-release bump-patch bump-minor bump-major
+install: build
+	mkdir -p $(INSTALL_PATH)
+	cp $(BIN_DIR)/$(BINARY_NAME) $(INSTALL_PATH)/$(BINARY_NAME)
+	chmod +x $(INSTALL_PATH)/$(BINARY_NAME)
+	@echo "Installed $(BINARY_NAME) to $(INSTALL_PATH)"
 
-version:
-	@git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0
+uninstall:
+	rm -f $(INSTALL_PATH)/$(BINARY_NAME)
+	@echo "Removed $(BINARY_NAME) from $(INSTALL_PATH)"
 
+release: ## Release new version (usage: make release TAG=v1.0.0)
+	@if [ -z "$(TAG)" ]; then echo "Usage: make release TAG=v1.0.0"; exit 1; fi
+	@echo "Releasing $(TAG)..."
+	@go test ./...
+	@rm -rf $(BUILD_DIR) && mkdir -p $(BUILD_DIR)
+	@echo "Building binaries..."
+	@GOOS=linux GOARCH=amd64 go build -ldflags "-X main.Version=$(TAG) -X main.Commit=$(COMMIT) -X main.Date=$(DATE) -s -w" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 cmd/ipfilter/main.go
+	@GOOS=linux GOARCH=arm64 go build -ldflags "-X main.Version=$(TAG) -X main.Commit=$(COMMIT) -X main.Date=$(DATE) -s -w" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 cmd/ipfilter/main.go
+	@GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.Version=$(TAG) -X main.Commit=$(COMMIT) -X main.Date=$(DATE) -s -w" -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 cmd/ipfilter/main.go
+	@GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.Version=$(TAG) -X main.Commit=$(COMMIT) -X main.Date=$(DATE) -s -w" -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 cmd/ipfilter/main.go
+	@GOOS=windows GOARCH=amd64 go build -ldflags "-X main.Version=$(TAG) -X main.Commit=$(COMMIT) -X main.Date=$(DATE) -s -w" -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe cmd/ipfilter/main.go
+	@GOOS=windows GOARCH=arm64 go build -ldflags "-X main.Version=$(TAG) -X main.Commit=$(COMMIT) -X main.Date=$(DATE) -s -w" -o $(BUILD_DIR)/$(BINARY_NAME)-windows-arm64.exe cmd/ipfilter/main.go
+	@cd $(BUILD_DIR) && shasum -a 256 * > checksums.txt
+	@echo "Creating GitHub release..."
+	@git tag -a $(TAG) -m "Release $(TAG)"
+	@git push origin $(TAG)
+	@gh release create $(TAG) $(BUILD_DIR)/$(BINARY_NAME)-* $(BUILD_DIR)/checksums.txt --title "$(BINARY_NAME) $(TAG)" --generate-notes
+	@rm -rf $(BUILD_DIR)
+	@echo "Done: $(TAG)"
 
-publish:
-	@set -euo pipefail; \
-	cur=$$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0); \
-	v=$${cur#v}; IFS='.' read -r -a ver <<< "$$v"; \
-	MA=$${ver[0]:-0}; MI=$${ver[1]:-0}; PA=$${ver[2]:-0}; \
-	case "$(LEVEL)" in major) MA=$$((MA+1)); MI=0; PA=0 ;; minor) MI=$$((MI+1)); PA=0 ;; *) PA=$$((PA+1)) ;; esac; \
-	new=v$$(printf "%d.%d.%d" $$MA $$MI $$PA); \
-	echo $$new; \
-	git tag -a $$new -m "Release $$new"; \
-	$(MAKE) release; \
-	$(MAKE) push-tags; \
-	$(MAKE) gh-release TAG=$$new
+bump-patch: ## Release next patch version
+	@$(MAKE) release TAG=$(NEXT_PATCH)
 
-bump-patch:
-	@$(MAKE) publish LEVEL=patch
+bump-minor: ## Release next minor version
+	@$(MAKE) release TAG=$(NEXT_MINOR)
 
-bump-minor:
-	@$(MAKE) publish LEVEL=minor
-
-bump-major:
-	@$(MAKE) publish LEVEL=major
-
-push-tags:
-	@git push --tags
-
-gh-release:
-	@set -euo pipefail; tag=$${TAG:-$$(git describe --tags --abbrev=0 2>/dev/null)}; gh release create $$tag --title "ipfilter $$tag" --notes "Release $$tag" $(DIST_DIR)/*
-
-publish-patch:
-	@$(MAKE) bump-patch
-	@$(MAKE) release
-	@$(MAKE) push-tags
-	@$(MAKE) gh-release
-
-publish-minor:
-	@$(MAKE) bump-minor
-	@$(MAKE) release
-	@$(MAKE) push-tags
-	@$(MAKE) gh-release
-
-publish-major:
-	@$(MAKE) bump-major
-	@$(MAKE) release
-	@$(MAKE) push-tags
-	@$(MAKE) gh-release
+bump-major: ## Release next major version
+	@$(MAKE) release TAG=$(NEXT_MAJOR)
