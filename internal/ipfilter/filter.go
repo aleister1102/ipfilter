@@ -62,6 +62,9 @@ type processor struct {
 }
 
 func (p processor) process(entry string) ([]string, error) {
+	// Strip port if present (e.g., "192.168.1.1:443" -> "192.168.1.1")
+	entry = stripPort(entry)
+
 	ip := net.ParseIP(entry)
 	if ip != nil {
 		return p.handleIP(ip)
@@ -73,6 +76,32 @@ func (p processor) process(entry string) ([]string, error) {
 	}
 
 	return p.handleCIDR(network)
+}
+
+// stripPort removes the port suffix from an IP address if present.
+// Handles both IPv4 (192.168.1.1:443) and IPv6 ([::1]:443) formats.
+func stripPort(entry string) string {
+	// Handle IPv6 with port: [::1]:443
+	if strings.HasPrefix(entry, "[") {
+		if idx := strings.LastIndex(entry, "]:"); idx != -1 {
+			return entry[1:idx]
+		}
+		// Just brackets without port: [::1]
+		if strings.HasSuffix(entry, "]") {
+			return strings.Trim(entry, "[]")
+		}
+		return entry
+	}
+
+	// Handle IPv4 with port: 192.168.1.1:443
+	// Only strip if there's exactly one colon (to avoid breaking IPv6)
+	if strings.Count(entry, ":") == 1 {
+		if idx := strings.LastIndex(entry, ":"); idx != -1 {
+			return entry[:idx]
+		}
+	}
+
+	return entry
 }
 
 func (p processor) handleIP(ip net.IP) ([]string, error) {

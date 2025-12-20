@@ -40,6 +40,35 @@ func TestProcessorProcessIPs(t *testing.T) {
 			input:   "not-an-ip",
 			wantErr: true,
 		},
+		{
+			name:  "IPv4 with port",
+			input: "203.0.113.10:443",
+			want:  []string{"203.0.113.10"},
+		},
+		{
+			name:  "IPv4 with port 80",
+			input: "203.0.113.10:80",
+			want:  []string{"203.0.113.10"},
+		},
+		{
+			name:  "IPv4 with port 8443",
+			input: "203.0.113.10:8443",
+			want:  []string{"203.0.113.10"},
+		},
+		{
+			name:  "private IPv4 with port",
+			input: "192.168.0.10:443",
+		},
+		{
+			name:  "IPv6 with port brackets",
+			input: "[2001:db8::1]:443",
+			want:  []string{"2001:db8::1"},
+		},
+		{
+			name:  "IPv6 with brackets no port",
+			input: "[2001:db8::1]",
+			want:  []string{"2001:db8::1"},
+		},
 	}
 
 	for _, tt := range tests {
