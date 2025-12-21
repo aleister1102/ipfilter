@@ -1,25 +1,30 @@
 # ipfilter
 
-Command-line helper that removes private IPv4 / IPv6 addresses and private CIDR
-ranges from an input list. Public CIDRs with 128 addresses or fewer are expanded
-into individual IPs; larger ranges are preserved in their original notation.
+A command-line tool that filters out private IPv4/IPv6 addresses and private CIDR ranges from input lists, keeping only public IPs.
 
-## Build
+**Key features:**
+- Removes private IPv4 ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, etc.)
+- Filters IPv6 ULA and link-local ranges
+- Expands public CIDRs with ≤128 addresses into individual IPs
+- Preserves larger CIDR ranges in their original notation
+
+## Quick Start
+
+### Build
 
 ```bash
-cd /Users/quan.m.le/Repos/ipctl
 make build
 ```
 
-This produces `bin/ipfilter` for the host platform. To cross-compile release
-binaries for macOS and Linux (amd64 and arm64), run:
+Produces `bin/ipfilter` for your platform.
+
+For cross-platform release binaries (macOS and Linux, amd64/arm64):
 
 ```bash
 make release
 ```
 
-Artifacts are written to `dist/` with platform suffixes (for example,
-`dist/ipfilter-darwin-arm64`).
+Artifacts go to `dist/` with platform suffixes (e.g., `dist/ipfilter-darwin-arm64`).
 
 ## Usage
 
@@ -27,29 +32,44 @@ Artifacts are written to `dist/` with platform suffixes (for example,
 ipfilter [-i input_file] [-o output_file]
 ```
 
-- `-i` (optional): path to a file containing newline-delimited IPs / CIDRs. When
-  omitted, stdin is used.
-- `-o` (optional): path to write the filtered results. Defaults to stdout.
+**Options:**
+- `-i` — Input file with newline-delimited IPs/CIDRs (default: stdin)
+- `-o` — Output file for filtered results (default: stdout)
 
 ## Examples
 
-Filter data from stdin and display results:
-
+**From stdin to stdout:**
 ```bash
 cat ips.txt | ./ipfilter
 ```
 
-Read from a file and write to another file:
-
+**From file to file:**
 ```bash
 ./ipfilter -i ips.txt -o filtered.txt
 ```
 
-## Behavior
+## How It Works
 
-- Skips private IPv4 ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
-  etc.), loopback, link-local, and IPv6 ULA / link-local ranges.
-- Drops any CIDR wholly contained within those private ranges.
-- Expands public CIDRs up to 128 addresses; larger CIDRs remain as ranges to
-  avoid enormous output.
+**Private IPv4 Ranges**
+Removes addresses from RFC 1918 private ranges:
+- `10.0.0.0/8` — Class A private network
+- `172.16.0.0/12` — Class B private network
+- `192.168.0.0/16` — Class C private network
+
+Also filters loopback (`127.0.0.0/8`) and link-local (`169.254.0.0/16`) addresses.
+
+**IPv6 Private Ranges**
+Filters out Unique Local Addresses (ULA, `fc00::/7`) and link-local addresses (`fe80::/10`), which are IPv6 equivalents of private ranges.
+
+**CIDR Expansion**
+Public CIDR ranges with 128 addresses or fewer are expanded into individual IP addresses. For example, `203.0.113.0/30` (4 IPs) becomes:
+```
+203.0.113.0
+203.0.113.1
+203.0.113.2
+203.0.113.3
+```
+
+**Large CIDR Preservation**
+CIDRs larger than 128 addresses stay in their original notation to keep output manageable. For example, `203.0.113.0/24` (256 IPs) remains as-is rather than expanding to 256 lines.
 
