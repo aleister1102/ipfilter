@@ -27,6 +27,14 @@ func TestProcessorProcessIPs(t *testing.T) {
 			input: "192.168.0.10",
 		},
 		{
+			name:  "this network 0.0.0.0",
+			input: "0.0.0.0",
+		},
+		{
+			name:  "this network address in range",
+			input: "0.0.0.5",
+		},
+		{
 			name:  "public IPv6",
 			input: "2001:db8::1",
 			want:  []string{"2001:db8::1"},
