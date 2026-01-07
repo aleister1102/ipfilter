@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 
+	"github.com/aleister1102/selfupdate"
 	"github.com/quan-m-le/ipctl/internal/ipfilter"
 )
 
@@ -26,6 +28,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	inputPath := fs.String("i", "", "input file (defaults to stdin)")
 	outputPath := fs.String("o", "", "output file (defaults to stdout)")
 	versionFlag := fs.Bool("version", false, "show version")
+	updateFlag := fs.Bool("update", false, "self-update the ipfilter binary to the latest stable release")
 
 	fs.Usage = func() {
 		fmt.Fprintf(stderr, "Usage: %s [-i input] [-o output]\n", fs.Name())
@@ -41,6 +44,20 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	if *versionFlag {
 		fmt.Fprintf(stdout, "ipfilter %s (commit: %s, built at: %s)\n", Version, Commit, Date)
+		return 0
+	}
+
+	if *updateFlag {
+		err := selfupdate.Update(context.Background(), selfupdate.Config{
+			Owner:          "aleister1102",
+			Repo:           "ipfilter",
+			Binary:         "ipfilter",
+			CurrentVersion: Version,
+		}, stdout, stderr)
+		if err != nil {
+			fmt.Fprintf(stderr, "ipfilter: self-update failed: %v\n", err)
+			return 1
+		}
 		return 0
 	}
 

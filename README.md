@@ -2,6 +2,12 @@
 
 A command-line tool that filters out private IPv4/IPv6 addresses and private CIDR ranges from input lists, keeping only public IPs.
 
+> **Deprecated:** `ipinfo grepip --exclude-reserved` can already perform the same filtering as `ipfilter`. For example:
+> ```
+> [some command that produces ips] | ipinfo grepip --exclude-reserved
+> ```
+> Consider switching to `ipinfo/cli` instead of relying on this repository.
+
 **Key features:**
 - Removes private IPv4 ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, etc.)
 - Filters IPv6 ULA and link-local ranges
@@ -35,6 +41,8 @@ ipfilter [-i input_file] [-o output_file]
 **Options:**
 - `-i` — Input file with newline-delimited IPs/CIDRs (default: stdin)
 - `-o` — Output file for filtered results (default: stdout)
+- `-update` — Self-update `ipfilter` to the latest stable release from `aleister1102/ipfilter`.
+> Set `GITHUB_TOKEN` if you hit GitHub rate limits during self-update.
 
 ## Examples
 
@@ -72,4 +80,3 @@ Public CIDR ranges with 128 addresses or fewer are expanded into individual IP a
 
 **Large CIDR Preservation**
 CIDRs larger than 128 addresses stay in their original notation to keep output manageable. For example, `203.0.113.0/24` (256 IPs) remains as-is rather than expanding to 256 lines.
-
